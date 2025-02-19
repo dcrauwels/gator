@@ -51,13 +51,4 @@ func main() {
 		os.Exit(0)
 	}
 
-	/*
-
-
-		currentUser := "dcrauwels"
-		c.SetUser(currentUser)
-
-		c, _ = config.Read()
-		fmt.Println(c)
-	*/
 }
