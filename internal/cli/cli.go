@@ -66,7 +66,7 @@ func HandlerRegister(s *State, cmd Command) error {
 		Name:      name,
 	}
 
-	// call database.CreateUser()
+	// execute query: call database.CreateUser()
 	insertedUser, err := s.Db.CreateUser(ctx, params)
 	if err != nil {
 		return fmt.Errorf("error inserting user into database: %w", err)
@@ -81,6 +81,21 @@ func HandlerRegister(s *State, cmd Command) error {
 	// log to term
 	fmt.Println("User created:")
 	fmt.Println(insertedUser)
+
+	return nil
+}
+
+func HandlerReset(s *State, cmd Command) error {
+	// argument sanity check
+	if len(cmd.Arguments) > 0 {
+		return fmt.Errorf("register takes exactly zero arguments")
+	}
+
+	// execute query: call database.ResetUser()
+	ctx := context.Background()
+	if err := s.Db.ResetUser(ctx); err != nil {
+		return fmt.Errorf("error resetting table: %w", err)
+	}
 
 	return nil
 }
