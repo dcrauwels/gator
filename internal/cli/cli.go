@@ -100,6 +100,32 @@ func HandlerReset(s *State, cmd Command) error {
 	return nil
 }
 
+func HandlerUsers(s *State, cmd Command) error {
+	// argument sanity check
+	if len(cmd.Arguments) > 0 {
+		return fmt.Errorf("register takes exactly zero arguments")
+	}
+
+	// execute query: call database.GetUsers()
+	ctx := context.Background()
+	users, err := s.Db.GetUsers(ctx)
+	if err != nil {
+		return fmt.Errorf("error getting users: %w", err)
+	}
+
+	var uName string
+
+	for _, u := range users {
+		uName = u.Name
+		if uName == s.Config.CurrentUserName {
+			uName += " (current)"
+		}
+		fmt.Printf("* %s\n", uName)
+	}
+
+	return nil
+}
+
 // define struct to hold available commands
 type Commands struct {
 	Call map[string]func(*State, Command) error

@@ -35,6 +35,7 @@ func main() {
 	c.Register("login", cli.HandlerLogin)
 	c.Register("register", cli.HandlerRegister)
 	c.Register("reset", cli.HandlerReset)
+	c.Register("users", cli.HandlerUsers)
 
 	// get cli args and sanity check
 	args := os.Args
