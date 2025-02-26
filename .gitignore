@@ -23,3 +23,12 @@ go.work.sum
 
 # env file
 .env
+
+# convenience
+.connection_string.txt
+
+# generated SQLC files
+internal/database
+
+# shell scripts
+refresh.sh

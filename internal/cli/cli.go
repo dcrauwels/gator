@@ -1,13 +1,18 @@
 package cli
 
 import (
+	"context"
 	"fmt"
+	"time"
 
 	"github.com/dcrauwels/gator/internal/config"
+	"github.com/dcrauwels/gator/internal/database"
+	"github.com/google/uuid"
 )
 
 type State struct {
 	Config *config.Config
+	Db     *database.Queries
 }
 
 type Command struct {
@@ -15,19 +20,67 @@ type Command struct {
 	Arguments []string
 }
 
+// set database user
 func HandlerLogin(s *State, cmd Command) error {
 	// argument sanity check
 	if len(cmd.Arguments) != 1 {
-		return fmt.Errorf("login takes one argument")
+		return fmt.Errorf("login takes exactly one argument")
+	}
+
+	name := cmd.Arguments[0]
+
+	// check if user in db
+	ctx := context.Background()
+	_, err := s.Db.GetUser(ctx, name)
+	if err != nil {
+		return fmt.Errorf("user is not registered: %w", err)
 	}
 
 	// set username in state
-	err := s.Config.SetUser(cmd.Arguments[0])
+	err = s.Config.SetUser(name)
 	if err != nil {
 		return fmt.Errorf("error setting user: %w", err)
 	}
 
-	fmt.Println("User has been set.")
+	fmt.Printf("User has been set to '%s'.\n", name)
+
+	return nil
+}
+
+// register database user
+func HandlerRegister(s *State, cmd Command) error {
+	// argument sanity check
+	if len(cmd.Arguments) != 1 {
+		return fmt.Errorf("register takes exactly one argument")
+	}
+
+	// is this even correct? I have no clue, just taken from PSQL docs
+	ctx := context.Background()
+
+	// params struct
+	name := cmd.Arguments[0]
+	params := database.CreateUserParams{
+		ID:        uuid.New(),
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+		Name:      name,
+	}
+
+	// call database.CreateUser()
+	insertedUser, err := s.Db.CreateUser(ctx, params)
+	if err != nil {
+		return fmt.Errorf("error inserting user into database: %w", err)
+	}
+
+	// set user
+	err = s.Config.SetUser(name)
+	if err != nil {
+		return fmt.Errorf("error setting user: %w", err)
+	}
+
+	// log to term
+	fmt.Println("User created:")
+	fmt.Println(insertedUser)
 
 	return nil
 }
