@@ -196,6 +196,31 @@ func HandlerFeeds(s *State, cmd Command) error {
 		return fmt.Errorf("feeds takes exactly zero arguments")
 	}
 
+	// init context
+	ctx := context.Background()
+
+	// run query to get all rows from db table via GetFeeds
+	feeds, err := s.Db.GetFeeds(ctx)
+	if err != nil {
+		return fmt.Errorf("error getting feeds: %w", err)
+	}
+
+	// log feeds to terminal
+	fmt.Printf("Number of feeds in table: %d\n", len(feeds))
+	for i, f := range feeds {
+		// get user name from user id
+		u, err := s.Db.GetUserByID(ctx, f.UserID)
+		if err != nil {
+			return fmt.Errorf("error getting user that created feed: %w", err)
+		}
+		// log to terminal
+		fmt.Printf("\n--Feed %d--\n", i+1)
+		fmt.Printf("Name: %s\n", f.Name)
+		fmt.Printf("URL: %s\n", f.Url)
+		fmt.Printf("Created by: %s\n", u.Name)
+
+	}
+
 	return nil
 }
 
