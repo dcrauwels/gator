@@ -7,6 +7,7 @@ import (
 
 	"github.com/dcrauwels/gator/internal/config"
 	"github.com/dcrauwels/gator/internal/database"
+	"github.com/dcrauwels/gator/internal/rssfeed"
 	"github.com/google/uuid"
 )
 
@@ -31,7 +32,7 @@ func HandlerLogin(s *State, cmd Command) error {
 
 	// check if user in db
 	ctx := context.Background()
-	_, err := s.Db.GetUser(ctx, name)
+	_, err := s.Db.GetUserByName(ctx, name)
 	if err != nil {
 		return fmt.Errorf("user is not registered: %w", err)
 	}
@@ -79,7 +80,7 @@ func HandlerRegister(s *State, cmd Command) error {
 	}
 
 	// log to term
-	fmt.Println("User created:")
+	fmt.Println("User created succesfully:")
 	fmt.Println(insertedUser)
 
 	return nil
@@ -121,6 +122,78 @@ func HandlerUsers(s *State, cmd Command) error {
 			uName += " (current)"
 		}
 		fmt.Printf("* %s\n", uName)
+	}
+
+	return nil
+}
+
+func HandlerAgg(s *State, cmd Command) error { // will change later
+	// argument sanity check
+	if len(cmd.Arguments) > 0 {
+		return fmt.Errorf("agg takes exactly zero arguments")
+	}
+
+	// get feed url
+	feedurl := "https://www.wagslane.dev/index.xml"
+
+	// init context
+	ctx := context.Background()
+
+	// fetch feed
+	feed, err := rssfeed.FetchFeed(ctx, feedurl)
+	if err != nil {
+		return fmt.Errorf("error fetching rss: %w", err)
+	}
+
+	fmt.Println(feed)
+
+	return nil
+}
+
+func HandlerAddFeed(s *State, cmd Command) error {
+	// argument sanity check
+	if len(cmd.Arguments) != 2 {
+		return fmt.Errorf("addfeed takes exactly two arguments")
+	}
+
+	// init context
+	ctx := context.Background()
+
+	// get current user
+	currentUser, err := s.Db.GetUserByName(ctx, s.Config.CurrentUserName)
+	if err != nil {
+		return fmt.Errorf("error getting current user: %w", err)
+	}
+	currentUserID := currentUser.ID
+
+	// get name, url
+	name, url := cmd.Arguments[0], cmd.Arguments[1]
+
+	// run query to add feed to DB CreateFeed
+	params := database.CreateFeedParams{
+		ID:        uuid.New(),
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+		Name:      name,
+		Url:       url,
+		UserID:    currentUserID,
+	}
+	createdFeed, err := s.Db.CreateFeed(ctx, params)
+	if err != nil {
+		return fmt.Errorf("error creating feed: %w", err)
+	}
+
+	// log created feed to terminal
+	fmt.Println("Feed created succesfully:")
+	fmt.Println(createdFeed)
+
+	return nil
+}
+
+func HandlerFeeds(s *State, cmd Command) error {
+	// argument sanity check
+	if len(cmd.Arguments) != 0 {
+		return fmt.Errorf("feeds takes exactly zero arguments")
 	}
 
 	return nil

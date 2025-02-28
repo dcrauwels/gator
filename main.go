@@ -36,6 +36,8 @@ func main() {
 	c.Register("register", cli.HandlerRegister)
 	c.Register("reset", cli.HandlerReset)
 	c.Register("users", cli.HandlerUsers)
+	c.Register("agg", cli.HandlerAgg)
+	c.Register("addfeed", cli.HandlerAddFeed)
 
 	// get cli args and sanity check
 	args := os.Args
