@@ -224,6 +224,15 @@ func HandlerFeeds(s *State, cmd Command) error {
 	return nil
 }
 
+func HandlerFollow(s *State, cmd Command) error {
+	// argument sanity check
+	if len(cmd.Arguments) != 1 {
+		return fmt.Errorf("follow takes exactly one argument")
+	}
+
+	return nil
+}
+
 // define struct to hold available commands
 type Commands struct {
 	Call map[string]func(*State, Command) error
