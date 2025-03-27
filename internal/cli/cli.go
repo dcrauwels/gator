@@ -187,6 +187,13 @@ func HandlerAddFeed(s *State, cmd Command) error {
 	fmt.Println("Feed created succesfully:")
 	fmt.Println(createdFeed)
 
+	// pass to HandlerFollow
+	followCommand := Command{
+		Name:      "follow",
+		Arguments: []string{url},
+	}
+	HandlerFollow(s, followCommand)
+
 	return nil
 }
 
@@ -263,6 +270,28 @@ func HandlerFollow(s *State, cmd Command) error {
 
 	// print the name of the feed and current user
 	fmt.Printf("Followed feed '%s' as user '%s'.\n", createdFeedFollow.FeedName, createdFeedFollow.UserName)
+	return nil
+}
+
+func HandlerFollowing(s *State, cmd Command) error {
+	// argument sanity check
+	if len(cmd.Arguments) != 0 {
+		return fmt.Errorf("follows takes exactly zero arguments")
+	}
+
+	// get follows
+	ctx := context.Background()
+	follows, err := s.Db.GetFeedFollowsForUser(ctx, s.Config.CurrentUserName)
+	if err != nil {
+		return fmt.Errorf("error getting follows: %w", err)
+	}
+
+	// print to stdout
+	fmt.Printf("User '%s' currently follows these feeds: \n", s.Config.CurrentUserName)
+	for _, f := range follows {
+		fmt.Printf(" - %s\n", f.FeedName)
+	}
+
 	return nil
 }
 
