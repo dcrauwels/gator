@@ -234,15 +234,35 @@ func HandlerFollow(s *State, cmd Command) error {
 	url := cmd.Arguments[0]
 
 	// init context
-
 	ctx := context.Background()
+
 	// check if url in feeds
-	feed, err := db.G
+	feed, err := s.Db.GetFeedByUrl(ctx, url)
+	if err != nil {
+		return fmt.Errorf("feed is not registered: %w", err)
+	}
+
+	// get user ID
+	user, err := s.Db.GetUserByName(ctx, s.Config.CurrentUserName)
+	if err != nil {
+		return fmt.Errorf("error checking current user: %w", err)
+	}
 
 	// create a new feed follow record for current user
+	params := database.CreateFeedFollowParams{
+		ID:        uuid.New(),
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+		UserID:    user.ID,
+		FeedID:    feed.ID,
+	}
+	createdFeedFollow, err := s.Db.CreateFeedFollow(ctx, params)
+	if err != nil {
+		return fmt.Errorf("error creating feed follow: %w", err)
+	}
 
 	// print the name of the feed and current user
-
+	fmt.Printf("Followed feed '%s' as user '%s'.\n", createdFeedFollow.FeedName, createdFeedFollow.UserName)
 	return nil
 }
 

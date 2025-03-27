@@ -39,6 +39,7 @@ func main() {
 	c.Register("agg", cli.HandlerAgg)
 	c.Register("addfeed", cli.HandlerAddFeed)
 	c.Register("feeds", cli.HandlerFeeds)
+	c.Register("follow", cli.HandlerFollow)
 
 	// get cli args and sanity check
 	args := os.Args
