@@ -230,6 +230,19 @@ func HandlerFollow(s *State, cmd Command) error {
 		return fmt.Errorf("follow takes exactly one argument")
 	}
 
+	// get url
+	url := cmd.Arguments[0]
+
+	// init context
+
+	ctx := context.Background()
+	// check if url in feeds
+	feed, err := db.G
+
+	// create a new feed follow record for current user
+
+	// print the name of the feed and current user
+
 	return nil
 }
 
