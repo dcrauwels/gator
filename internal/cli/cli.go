@@ -180,20 +180,25 @@ func scrapeFeeds(s *State) error {
 
 }
 
-func HandlerAgg(s *State, cmd Command) error { // will change later
-	// get feed url
-	feedurl := "https://www.wagslane.dev/index.xml"
+// periodically prints content of feeds (titles only) to stdout. uses scrapeFeeds
+func HandlerAgg(s *State, cmd Command) error {
+	// takes one argument
+	tBRString := cmd.Arguments[0]
 
-	// init context
-	ctx := context.Background()
-
-	// fetch feed
-	feed, err := rssfeed.FetchFeed(ctx, feedurl)
+	// parse into duration
+	tBR, err := time.ParseDuration(tBRString)
 	if err != nil {
-		return fmt.Errorf("error fetching rss: %w", err)
+		fmt.Printf("incorrect time duration provided: %w", err)
 	}
 
-	fmt.Println(feed)
+	// print announcement of operation to stdout
+	fmt.Printf("Collecting feeds every %s.\n", tBRString)
+
+	// init ticker
+	ticker := time.NewTicker(tBR)
+	for ; ; <-ticker.C {
+		scrapeFeeds(s)
+	}
 
 	return nil
 }
