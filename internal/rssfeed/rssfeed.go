@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-// describes the entire rss feed. for unmarshalling purposes
+// describes the entire rss feed. with json for unmarshalling purposes
 type RSSFeed struct {
 	Channel struct {
 		Title       string    `xml:"title"`

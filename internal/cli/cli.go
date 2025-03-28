@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"time"
 
@@ -21,13 +22,37 @@ type Command struct {
 	Arguments []string
 }
 
+// middleware for checking if logged in
+func MwLoggedIn(handler func(s *State, cmd Command) error) func(*State, Command) error {
+	return func(s *State, cmd Command) error {
+		ctx := context.Background()
+
+		// check for user by name
+		_, err := s.Db.GetUserByName(ctx, s.Config.CurrentUserName)
+		if err != nil {
+			return fmt.Errorf("no user logged in or current user not registered: %w", err)
+		}
+
+		// return
+		return handler(s, cmd)
+	}
+}
+
+// wrapper for argument sanity check
+func MwNumArguments(handler func(s *State, cmd Command) error, numArguments int) func(*State, Command) error {
+	return func(s *State, cmd Command) error {
+		// argument sanity check in general form
+		if len(cmd.Arguments) != numArguments {
+			return fmt.Errorf("%s takes exactly %d argument(s)", cmd.Name, numArguments)
+		}
+
+		// return
+		return handler(s, cmd)
+	}
+}
+
 // set database user
 func HandlerLogin(s *State, cmd Command) error {
-	// argument sanity check
-	if len(cmd.Arguments) != 1 {
-		return fmt.Errorf("login takes exactly one argument")
-	}
-
 	name := cmd.Arguments[0]
 
 	// check if user in db
@@ -50,12 +75,6 @@ func HandlerLogin(s *State, cmd Command) error {
 
 // register database user
 func HandlerRegister(s *State, cmd Command) error {
-	// argument sanity check
-	if len(cmd.Arguments) != 1 {
-		return fmt.Errorf("register takes exactly one argument")
-	}
-
-	// is this even correct? I have no clue, just taken from PSQL docs
 	ctx := context.Background()
 
 	// params struct
@@ -87,11 +106,6 @@ func HandlerRegister(s *State, cmd Command) error {
 }
 
 func HandlerReset(s *State, cmd Command) error {
-	// argument sanity check
-	if len(cmd.Arguments) > 0 {
-		return fmt.Errorf("register takes exactly zero arguments")
-	}
-
 	// execute query: call database.ResetUser()
 	ctx := context.Background()
 	if err := s.Db.ResetUser(ctx); err != nil {
@@ -102,11 +116,6 @@ func HandlerReset(s *State, cmd Command) error {
 }
 
 func HandlerUsers(s *State, cmd Command) error {
-	// argument sanity check
-	if len(cmd.Arguments) > 0 {
-		return fmt.Errorf("register takes exactly zero arguments")
-	}
-
 	// execute query: call database.GetUsers()
 	ctx := context.Background()
 	users, err := s.Db.GetUsers(ctx)
@@ -127,12 +136,51 @@ func HandlerUsers(s *State, cmd Command) error {
 	return nil
 }
 
-func HandlerAgg(s *State, cmd Command) error { // will change later
-	// argument sanity check
-	if len(cmd.Arguments) > 0 {
-		return fmt.Errorf("agg takes exactly zero arguments")
+func scrapeFeeds(s *State) error {
+
+	// run GetNextFeedToFetch query
+	ctx := context.Background()
+	nextFeed, err := s.Db.GetNextFeedToFetch(ctx)
+	if err != nil {
+		return fmt.Errorf("error fetching next feed: %w", err)
 	}
 
+	// construct MarkFeedFetched params
+	nTime := sql.NullTime{ // nullable time takes this type
+		Time:  time.Now(),
+		Valid: true, // functionally the difference is in this bool
+	}
+	params := database.MarkFeedFetchedParams{
+		LastFetchedAt: nTime,
+		UpdatedAt:     time.Now(),
+		ID:            nextFeed.ID,
+	}
+
+	// run MarkFeedFetched query
+	_, err = s.Db.MarkFeedFetched(ctx, params)
+	if err != nil {
+		return fmt.Errorf("error marking feed as fetched: %w", err)
+	}
+
+	// fetch feed using rssfeed.FetchFeed()
+	actualFeed, err := rssfeed.FetchFeed(ctx, nextFeed.Url)
+	if err != nil {
+		return fmt.Errorf("error fetching feed from website: %w", err)
+	}
+
+	// print item titles to stdout
+	fmt.Printf("Printing item titles from RSS feed '%s': \n", actualFeed.Channel.Title)
+	if len(actualFeed.Channel.Item) > 0 {
+		for _, item := range actualFeed.Channel.Item {
+			fmt.Printf(" -%s\n", item.Title)
+		}
+	}
+
+	return nil
+
+}
+
+func HandlerAgg(s *State, cmd Command) error { // will change later
 	// get feed url
 	feedurl := "https://www.wagslane.dev/index.xml"
 
@@ -151,11 +199,6 @@ func HandlerAgg(s *State, cmd Command) error { // will change later
 }
 
 func HandlerAddFeed(s *State, cmd Command) error {
-	// argument sanity check
-	if len(cmd.Arguments) != 2 {
-		return fmt.Errorf("addfeed takes exactly two arguments")
-	}
-
 	// init context
 	ctx := context.Background()
 
@@ -198,11 +241,6 @@ func HandlerAddFeed(s *State, cmd Command) error {
 }
 
 func HandlerFeeds(s *State, cmd Command) error {
-	// argument sanity check
-	if len(cmd.Arguments) != 0 {
-		return fmt.Errorf("feeds takes exactly zero arguments")
-	}
-
 	// init context
 	ctx := context.Background()
 
@@ -232,10 +270,7 @@ func HandlerFeeds(s *State, cmd Command) error {
 }
 
 func HandlerFollow(s *State, cmd Command) error {
-	// argument sanity check
-	if len(cmd.Arguments) != 1 {
-		return fmt.Errorf("follow takes exactly one argument")
-	}
+	// 1 argument
 
 	// get url
 	url := cmd.Arguments[0]
@@ -252,7 +287,7 @@ func HandlerFollow(s *State, cmd Command) error {
 	// get user ID
 	user, err := s.Db.GetUserByName(ctx, s.Config.CurrentUserName)
 	if err != nil {
-		return fmt.Errorf("error checking current user: %w", err)
+		return fmt.Errorf("error getting current user: %w", err)
 	}
 
 	// create a new feed follow record for current user
@@ -274,10 +309,7 @@ func HandlerFollow(s *State, cmd Command) error {
 }
 
 func HandlerFollowing(s *State, cmd Command) error {
-	// argument sanity check
-	if len(cmd.Arguments) != 0 {
-		return fmt.Errorf("follows takes exactly zero arguments")
-	}
+	// 0 arguments
 
 	// get follows
 	ctx := context.Background()
@@ -292,6 +324,28 @@ func HandlerFollowing(s *State, cmd Command) error {
 		fmt.Printf(" - %s\n", f.FeedName)
 	}
 
+	return nil
+}
+
+func HandlerUnfollow(s *State, cmd Command) error {
+	// 1 argument
+	url := cmd.Arguments[0]
+
+	// run query
+	ctx := context.Background()
+	params := database.DeleteFeedFollowByUserUrlParams{
+		Name: s.Config.CurrentUserName,
+		Url:  url,
+	}
+	_, err := s.Db.DeleteFeedFollowByUserUrl(ctx, params)
+	if err != nil {
+		return fmt.Errorf("error deleting feed follow: %w", err)
+	}
+
+	// print
+	fmt.Printf("User '%s' unfollowed feed at url '%s'.\n", s.Config.CurrentUserName, url)
+
+	//return
 	return nil
 }
 
