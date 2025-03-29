@@ -42,6 +42,8 @@ func main() {
 	c.Register("follow", cli.MwNumArguments(cli.HandlerFollow, 1))
 	c.Register("following", cli.MwLoggedIn(cli.MwNumArguments(cli.HandlerFollowing, 0)))
 	c.Register("unfollow", cli.MwLoggedIn(cli.MwNumArguments(cli.HandlerUnfollow, 1)))
+	c.Register("browse", cli.HandlerBrowse)
+	c.Register("resetposts", cli.MwNumArguments(cli.HandlerResetPosts, 0))
 
 	// get cli args and sanity check
 	args := os.Args

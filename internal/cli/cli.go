@@ -109,7 +109,17 @@ func HandlerReset(s *State, cmd Command) error {
 	// execute query: call database.ResetUser()
 	ctx := context.Background()
 	if err := s.Db.ResetUser(ctx); err != nil {
-		return fmt.Errorf("error resetting table: %w", err)
+		return fmt.Errorf("error resetting users table: %w", err)
+	}
+
+	return nil
+}
+
+func HandlerResetPosts(s *State, cmd Command) error {
+	// execute query: call database.ResetPosts()
+	ctx := context.Background()
+	if err := s.Db.ResetPosts(ctx); err != nil {
+		return fmt.Errorf("error resetting posts table: %w", err)
 	}
 
 	return nil
@@ -150,14 +160,14 @@ func scrapeFeeds(s *State) error {
 		Time:  time.Now(),
 		Valid: true, // functionally the difference is in this bool
 	}
-	params := database.MarkFeedFetchedParams{
+	mFFParams := database.MarkFeedFetchedParams{
 		LastFetchedAt: nTime,
 		UpdatedAt:     time.Now(),
 		ID:            nextFeed.ID,
 	}
 
 	// run MarkFeedFetched query
-	_, err = s.Db.MarkFeedFetched(ctx, params)
+	_, err = s.Db.MarkFeedFetched(ctx, mFFParams)
 	if err != nil {
 		return fmt.Errorf("error marking feed as fetched: %w", err)
 	}
@@ -168,11 +178,44 @@ func scrapeFeeds(s *State) error {
 		return fmt.Errorf("error fetching feed from website: %w", err)
 	}
 
-	// print item titles to stdout
-	fmt.Printf("Printing item titles from RSS feed '%s': \n", actualFeed.Channel.Title)
+	// save posts to database 'posts'
+	// init createpost params
+	cPParams := database.CreatePostParams{}
+
+	// announce
+	fmt.Printf("Saving RSS items from feed '%s' to database...\n", actualFeed.Channel.Title)
+
+	// start iterating over items in retrieved feed
 	if len(actualFeed.Channel.Item) > 0 {
 		for _, item := range actualFeed.Channel.Item {
-			fmt.Printf(" -%s\n", item.Title)
+			// construct publicationdate variable. this is not mandatory in RSS spec, so nullable
+			pubDate, err := time.Parse(time.RFC1123Z, item.PubDate) // pubdate is in RFC822 according to RSS specs
+			fmt.Println(pubDate)
+			pubDateAvailable := true
+			if err != nil {
+				pubDateAvailable = false
+			}
+			nTime = sql.NullTime{
+				Time:  pubDate,
+				Valid: pubDateAvailable,
+			}
+
+			// set cpparams values
+			cPParams.ID = uuid.New()
+			cPParams.CreatedAt = time.Now()
+			cPParams.UpdatedAt = time.Now()
+			cPParams.Title = item.Title
+			cPParams.Url = item.Link
+			cPParams.Description = item.Description
+			cPParams.PublishedAt = nTime
+			cPParams.FeedID = nextFeed.ID
+
+			_, err = s.Db.CreatePost(ctx, cPParams)
+			if err != nil {
+				// NOTE should really log this
+				return fmt.Errorf("error adding post to database: %w", err)
+			}
+
 		}
 	}
 
@@ -188,7 +231,7 @@ func HandlerAgg(s *State, cmd Command) error {
 	// parse into duration
 	tBR, err := time.ParseDuration(tBRString)
 	if err != nil {
-		fmt.Printf("incorrect time duration provided: %w", err)
+		return fmt.Errorf("incorrect time duration provided: %w", err)
 	}
 
 	// print announcement of operation to stdout
@@ -200,7 +243,7 @@ func HandlerAgg(s *State, cmd Command) error {
 		scrapeFeeds(s)
 	}
 
-	return nil
+	// no return because ticker needs to be sent a cancel signal to stop this func
 }
 
 func HandlerAddFeed(s *State, cmd Command) error {
@@ -351,6 +394,41 @@ func HandlerUnfollow(s *State, cmd Command) error {
 	fmt.Printf("User '%s' unfollowed feed at url '%s'.\n", s.Config.CurrentUserName, url)
 
 	//return
+	return nil
+}
+
+func HandlerBrowse(s *State, cmd Command) error {
+	// need to manually do argument sanity check here as MwNumArguments does not take ranges
+	if len(cmd.Arguments) != 1 && len(cmd.Arguments) != 0 {
+		return fmt.Errorf("browse takes either 0 or 1 argument")
+	}
+
+	// parse arguments
+	lengthLimit := int32(2)
+	if len(cmd.Arguments) > 0 {
+		fmt.Sscan(cmd.Arguments[0], &lengthLimit)
+	}
+
+	// prep query
+	ctx := context.Background()
+	params := database.GetPostsByUserNameParams{
+		Name:  s.Config.CurrentUserName,
+		Limit: lengthLimit,
+	}
+
+	// run query
+	rows, err := s.Db.GetPostsByUserName(ctx, params)
+	if err != nil {
+		return fmt.Errorf("error getting posts by username: %w", err)
+	}
+
+	// print to stdout
+	for i, r := range rows {
+		fmt.Printf("Entry %d: %s\n", i+1, r.Title)
+		fmt.Printf(" Url: %s\n", r.Url)
+		fmt.Printf(" Published at: %v\n", r.PublishedAt.Time)
+		fmt.Printf("%s\n\n", r.Description)
+	}
 	return nil
 }
 
